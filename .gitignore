@@ -1,0 +1,20 @@
+# system
+.DS_Store
+
+# environment
+.env
+
+# config files
+config.json
+config.json.bak.*
+config.subscription.json
+
+# sing-box
+cache.db
+
+
+# sing-box session
+.sing-box.pid
+.sing-box.log
+.sing-box.lock/
+.sing-box.config.sha256
