@@ -9,9 +9,9 @@ brew install sing-box
 brew install jq fzf
 ```
 
-## Environment setup
+## Environment Setup
 
-This script is intended to live at `~/.config/sing-box`, because the examples and generated files are all relative to that directory.
+This script is intended to live at `~/.config/sing-box`.
 
 ```bash
 mkdir -p ~/.config
