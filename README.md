@@ -1,6 +1,6 @@
 # sing-box
 
-[sing-box](https://sing-box.sagernet.org/zh/)
+My Local [sing-box](https://sing-box.sagernet.org/zh/) Management Script.
 
 ## Installation
 
@@ -9,22 +9,31 @@ brew install sing-box
 brew install jq fzf
 ```
 
-## CLI dependencies
+## Environment setup
 
-- `bash`: runs `sing-box.sh`.
-- `sing-box`: validates and runs the generated config.
-- `curl`: fetches the subscription and talks to the Clash API.
-- `jq`: merges JSON configs, renders proxy lists, URL-encodes API values, and parses delay results.
-- `fzf`: only required by `proxies switch`.
-- `sudo`: required by `run`/`restart` when starting sing-box and by `stop` when terminating it.
-- macOS built-ins: `networksetup` and `scutil` for system proxy commands and inspection; `ps`, `nc`, `lsof`, `netstat`, `ifconfig`, `awk`, `grep`, `sed`, `mktemp`, `shasum` or `sha256sum` for process, port, config, and diagnostics helpers.
+This script is intended to live at `~/.config/sing-box`, because the examples and generated files are all relative to that directory.
+
+```bash
+mkdir -p ~/.config
+git clone https://github.com/yjl9903/sing-box ~/.config/sing-box
+cd ~/.config/sing-box
+```
+
+Create `.env` and put your subscription URL in it:
+
+```bash
+echo 'SUBSCRIPTION_URL="https://example.com/subscription"' > ~/.config/sing-box/.env
+```
+
+Then start sing-box. `start` refreshes the subscription cache, generates `config.json`, starts the process, and enables the system proxy:
+
+```bash
+~/.config/sing-box/sing-box.sh start
+```
 
 ## Usage
 
 ```bash
-# Get subscription URL
-echo 'SUBSCRIPTION_URL="https://example.com/subscription"' > ~/.config/sing-box/.env
-
 # Refresh config.subscription.json and generate config.json from config.template.json
 ~/.config/sing-box/sing-box.sh update
 
@@ -32,6 +41,7 @@ echo 'SUBSCRIPTION_URL="https://example.com/subscription"' > ~/.config/sing-box/
 # Run refreshes config.subscription.json and regenerates config.json first.
 # If refresh fails, it falls back to the existing config.subscription.json cache.
 ~/.config/sing-box/sing-box.sh run
+~/.config/sing-box/sing-box.sh start
 ~/.config/sing-box/sing-box.sh stop
 ~/.config/sing-box/sing-box.sh restart
 
@@ -48,9 +58,22 @@ echo 'SUBSCRIPTION_URL="https://example.com/subscription"' > ~/.config/sing-box/
 eval "$(~/.config/sing-box/sing-box.sh env on)"
 eval "$(~/.config/sing-box/sing-box.sh env off)"
 
-# Insepct proxy status
+# View and test current proxy environment variables
+~/.config/sing-box/sing-box.sh env check
+
+# Insepct system proxy status
 ~/.config/sing-box/sing-box.sh inspect
 ```
+
+## CLI dependencies
+
+- `bash`: runs `sing-box.sh`.
+- `sing-box`: validates and runs the generated config.
+- `curl`: fetches the subscription and talks to the Clash API.
+- `jq`: merges JSON configs, renders proxy lists, URL-encodes API values, and parses delay results.
+- `fzf`: only required by `proxies switch`.
+- `sudo`: required by `run`/`start`/`restart` when starting sing-box and by `stop` when terminating it.
+- macOS built-ins: `networksetup` and `scutil` for system proxy commands and inspection; `ps`, `nc`, `lsof`, `netstat`, `ifconfig`, `awk`, `grep`, `sed`, `mktemp`, `shasum` or `sha256sum` for process, port, config, and diagnostics helpers.
 
 ## License
 

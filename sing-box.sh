@@ -49,7 +49,7 @@ no_proxy_value="localhost,127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,
 usage() {
   cat <<EOF
 Usage:
-  $0 run
+  $0 run|start
   $0 stop
   $0 restart
   $0 update
@@ -58,7 +58,7 @@ Usage:
   $0 proxies test
   $0 proxy on
   $0 proxy off
-  $0 env [on|off]
+  $0 env [on|off|check|test|status]
   $0 inspect
 EOF
 }
@@ -592,7 +592,7 @@ cmd_proxies_test() {
       marker="[ ]"
     fi
     delay=$(test_proxy_delay "$name")
-    printf '%s %-8s %s\n' "$marker" "$delay" "$name"
+    printf '%s %6s  %s\n' "$marker" "$delay" "$name"
   done < <(
     printf '%s\n' "$response" |
       jq -r --arg now "$now" '[.all[]?] | (map(select(. == $now)) + map(select(. != $now)))[]'
@@ -634,6 +634,102 @@ cmd_env() {
 
 cmd_env_clear() {
   echo "unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY no_proxy NO_PROXY"
+}
+
+env_proxy_value() {
+  printenv "$1" 2>/dev/null || true
+}
+
+expected_env_proxy_value() {
+  case "$1" in
+    http_proxy|https_proxy|HTTP_PROXY|HTTPS_PROXY)
+      printf 'http://%s:%s\n' "$host" "$port"
+      ;;
+    all_proxy|ALL_PROXY)
+      printf 'socks5://%s:%s\n' "$host" "$port"
+      ;;
+    no_proxy|NO_PROXY)
+      printf '%s\n' "$no_proxy_value"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+cmd_env_check_show_values() {
+  local name value expected
+
+  echo "Environment proxy variables"
+  for name in http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY no_proxy NO_PROXY; do
+    value=$(env_proxy_value "$name")
+    expected=$(expected_env_proxy_value "$name")
+    if [[ -z "$value" ]]; then
+      printf '  [unset] %-12s expected %s\n' "$name" "$expected"
+    elif [[ "$value" == "$expected" ]]; then
+      printf '  [ok]    %-12s %s\n' "$name" "$value"
+    else
+      printf '  [diff]  %-12s %s (expected %s)\n' "$name" "$value" "$expected"
+    fi
+  done
+}
+
+cmd_env_check_test_one() {
+  local name=$1 proxy=$2 timeout_seconds output status stats http_code time_total error
+  timeout_seconds=$(( (proxy_test_timeout + 999) / 1000 ))
+
+  set +e
+  output=$(curl -sS -o /dev/null -w $'\n%{http_code} %{time_total}' \
+    --proxy "$proxy" \
+    --connect-timeout "$timeout_seconds" \
+    --max-time "$timeout_seconds" \
+    "$proxy_test_url" 2>&1)
+  status=$?
+  set -e
+
+  stats=${output##*$'\n'}
+  read -r http_code time_total <<<"$stats"
+
+  if [[ "$status" -eq 0 && "$http_code" =~ ^[0-9][0-9][0-9]$ && "10#$http_code" -ge 200 && "10#$http_code" -lt 400 ]]; then
+    printf '  [ok]   %-12s %s (%s, %ss)\n' "$name" "$proxy" "$http_code" "$time_total"
+    return 0
+  fi
+
+  output=${output%$'\n'$stats}
+  error=$(printf '%s\n' "$output" | sed '/^[[:space:]]*$/d' | tail -n 1)
+  if [[ -n "$error" ]]; then
+    printf '  [fail] %-12s %s (%s)\n' "$name" "$proxy" "$error"
+  else
+    printf '  [fail] %-12s %s (curl exit %s, http %s)\n' "$name" "$proxy" "$status" "${http_code:-unknown}"
+  fi
+  return 1
+}
+
+cmd_env_check() {
+  check_command curl
+
+  local name value tested=0 failed=0
+
+  cmd_env_check_show_values
+
+  echo
+  echo "Proxy test"
+  echo "  URL: $proxy_test_url"
+  echo "  Timeout: ${proxy_test_timeout}ms"
+
+  for name in http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY; do
+    value=$(env_proxy_value "$name")
+    [[ -n "$value" ]] || continue
+    tested=1
+    cmd_env_check_test_one "$name" "$value" || failed=1
+  done
+
+  if [[ "$tested" -eq 0 ]]; then
+    echo "  [fail] no proxy environment variables are set"
+    return 1
+  fi
+
+  [[ "$failed" -eq 0 ]] || return 1
 }
 
 section() {
@@ -721,8 +817,8 @@ main() {
   shift || true
 
   case "$command" in
-    run)
-      [[ "$#" -eq 0 ]] || fail "run takes no arguments"
+    run|start)
+      [[ "$#" -eq 0 ]] || fail "$command takes no arguments"
       cmd_run
       cmd_proxy_on
       ;;
@@ -783,8 +879,12 @@ main() {
           [[ "$#" -eq 1 ]] || fail "env off takes no extra arguments"
           cmd_env_clear
           ;;
+        check|test|status)
+          [[ "$#" -eq 1 ]] || fail "env ${1:-check} takes no extra arguments"
+          cmd_env_check
+          ;;
         *)
-          fail "usage: $0 env [on|off]"
+          fail "usage: $0 env [on|off|check|test|status]"
           ;;
       esac
       ;;

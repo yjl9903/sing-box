@@ -11,7 +11,7 @@
       {
         "type": "tcp",
         "tag": "remote",
-        "server": "8.8.8.8",
+        "server": "1.1.1.1",
         "server_port": 53,
         "detour": "default"
       }
