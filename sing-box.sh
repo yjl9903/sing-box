@@ -58,7 +58,7 @@ Usage:
   $0 proxies test
   $0 proxy on
   $0 proxy off
-  $0 env [on|off|check|test|status]
+  $0 env [on|off|check|test [url]|status]
   $0 inspect
 EOF
 }
@@ -879,12 +879,20 @@ main() {
           [[ "$#" -eq 1 ]] || fail "env off takes no extra arguments"
           cmd_env_clear
           ;;
-        check|test|status)
+        check|status)
           [[ "$#" -eq 1 ]] || fail "env ${1:-check} takes no extra arguments"
           cmd_env_check
           ;;
+        test)
+          [[ "$#" -le 2 ]] || fail "env test takes at most one URL argument"
+          if [[ "$#" -eq 2 ]]; then
+            [[ -n "$2" ]] || fail "env test URL cannot be empty"
+            proxy_test_url=$2
+          fi
+          cmd_env_check
+          ;;
         *)
-          fail "usage: $0 env [on|off|check|test|status]"
+          fail "usage: $0 env [on|off|check|test [url]|status]"
           ;;
       esac
       ;;

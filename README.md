@@ -60,6 +60,7 @@ eval "$(~/.config/sing-box/sing-box.sh env off)"
 
 # View and test current proxy environment variables
 ~/.config/sing-box/sing-box.sh env check
+~/.config/sing-box/sing-box.sh env test https://www.google.com/generate_204
 
 # Insepct system proxy status
 ~/.config/sing-box/sing-box.sh inspect
