@@ -14,6 +14,7 @@ config_hash_file="$script_dir/.sing-box.config.sha256"
 network_service="Wi-Fi"
 host=127.0.0.1
 port=7892
+tun_dns=172.19.0.2
 clash_port=9090
 proxy_test_timeout=3000
 proxy_test_url="http://www.gstatic.com/generate_204"
@@ -395,6 +396,15 @@ generate_config_from_cache() {
             | if .type == "selector" then .outbounds = $node_tags else . end]
           + $nodes
         )
+    | ([.outbounds[]?.server?
+        | select(type == "string" and test("^([0-9]{1,3}\\.){3}[0-9]{1,3}$"))
+        | . + "/32"] | unique) as $route_exclude_address
+    | .inbounds |= map(
+        if .type == "tun"
+        then .route_exclude_address = $route_exclude_address
+        else .
+        end
+      )
   ' "$config_template_file" >"$tmp_merged"; then
     rm -f "$tmp_merged"
     fail "failed to merge subscription outbounds into config template"
@@ -604,16 +614,18 @@ cmd_proxy_on() {
   networksetup -setsecurewebproxy          "$network_service" "$host" "$port"
   networksetup -setsocksfirewallproxy      "$network_service" "$host" "$port"
   networksetup -setproxybypassdomains      "$network_service" "${bypass_domains[@]}"
+  networksetup -setdnsservers              "$network_service" "$tun_dns"
   networksetup -setwebproxystate           "$network_service" on
   networksetup -setsecurewebproxystate     "$network_service" on
   networksetup -setsocksfirewallproxystate "$network_service" on
-  echo "system proxy enabled on $network_service: $host:$port"
+  echo "system proxy enabled on $network_service: $host:$port, dns: $tun_dns"
 }
 
 cmd_proxy_off() {
   networksetup -setwebproxystate           "$network_service" off
   networksetup -setsecurewebproxystate     "$network_service" off
   networksetup -setsocksfirewallproxystate "$network_service" off
+  networksetup -setdnsservers              "$network_service" empty
   echo "system proxy disabled on $network_service"
 }
 
