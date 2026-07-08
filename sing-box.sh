@@ -177,26 +177,46 @@ trim() {
   printf '%s\n' "$value"
 }
 
-subscription_url() {
+subscription_urls() {
   [[ -f "$env_file" ]] || fail "missing env file: $env_file"
 
-  local line value
-  line=$(grep -E '^[[:space:]]*SUBSCRIPTION_URL=' "$env_file" | tail -n 1 || true)
-  [[ -n "$line" ]] || fail "missing SUBSCRIPTION_URL in $env_file"
+  local found=0 line value
+  while IFS= read -r line; do
+    [[ "$line" =~ ^[[:space:]]*SUBSCRIPTION_URL= ]] || continue
+    found=1
+    value=${line#*=}
+    value=$(trim "$value")
+    case "$value" in
+      \"*\")
+        value=${value#\"}
+        value=${value%\"}
+        ;;
+      \'*\')
+        value=${value#\'}
+        value=${value%\'}
+        ;;
+    esac
+    [[ -n "$value" ]] || fail "SUBSCRIPTION_URL is empty in $env_file"
+    printf '%s\n' "$value"
+  done <"$env_file"
 
-  value=${line#*=}
-  value=$(trim "$value")
+  [[ "$found" -eq 1 ]] || fail "missing SUBSCRIPTION_URL in $env_file"
+}
+
+subscription_host() {
+  local value
+  value=${1#*://}
+  value=${value#*@}
+  value=${value%%[/?#]*}
   case "$value" in
-    \"*\")
-      value=${value#\"}
-      value=${value%\"}
+    \[*\]*)
+      value=${value#\[}
+      value=${value%%\]*}
       ;;
-    \'*\')
-      value=${value#\'}
-      value=${value%\'}
+    *)
+      value=${value%%:*}
       ;;
   esac
-  [[ -n "$value" ]] || fail "SUBSCRIPTION_URL is empty in $env_file"
   printf '%s\n' "$value"
 }
 
@@ -325,9 +345,8 @@ cmd_stop() {
 
 cmd_restart() {
   acquire_lock
-  cmd_update_impl
-  check_config
   cmd_stop_impl
+  cmd_update_impl
   cmd_run_impl_without_update
   cmd_proxy_on
 }
@@ -339,39 +358,58 @@ count_subscription_nodes() {
 fetch_subscription_cache() {
   check_command curl
 
-  local url tmp_subscription node_count
-  url=$(subscription_url)
-  tmp_subscription=$(mktemp "$script_dir/.subscription.XXXXXX.json")
+  local urls url tmp_dir tmp_subscription tmp_combined node_count index=0
+  urls=$(subscription_urls)
+  tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/sing-box.subscription.XXXXXX")
+  tmp_combined="$tmp_dir/combined.json"
 
-  echo "fetching subscription config"
-  if ! curl -fsSL "$url" -o "$tmp_subscription"; then
-    rm -f "$tmp_subscription"
-    if [[ -f "$subscription_cache_file" ]]; then
-      echo "warning: failed to fetch subscription config; using cached subscription"
-      return 0
+  while IFS= read -r url; do
+    index=$((index + 1))
+    tmp_subscription="$tmp_dir/subscription-$index.json"
+
+    echo "fetching subscription config: $(subscription_host "$url")"
+    if ! curl -fsSL "$url" -H "User-Agent: sing-box" -o "$tmp_subscription"; then
+      rm -rf "$tmp_dir"
+      if [[ -f "$subscription_cache_file" ]]; then
+        echo "warning: failed to fetch subscription config; using cached subscription"
+        return 0
+      fi
+      fail "failed to fetch subscription config and no cache exists"
     fi
-    fail "failed to fetch subscription config and no cache exists"
+
+    if ! jq -e '.outbounds | type == "array"' "$tmp_subscription" >/dev/null; then
+      rm -rf "$tmp_dir"
+      if [[ -f "$subscription_cache_file" ]]; then
+        echo "warning: subscription response is invalid; using cached subscription"
+        return 0
+      fi
+      fail "subscription response is not a sing-box config with outbounds and no cache exists"
+    fi
+  done <<<"$urls"
+
+  if ! jq -s '
+    reduce [.[].outbounds[]? | select(.tag)][] as $outbound
+      ({outbounds: [], tags: {}};
+        if .tags[$outbound.tag] then .
+        else .outbounds += [$outbound] | .tags[$outbound.tag] = true
+        end)
+    | {outbounds}
+  ' "$tmp_dir"/subscription-*.json >"$tmp_combined"; then
+    rm -rf "$tmp_dir"
+    fail "failed to merge subscription configs"
   fi
 
-  if ! jq -e '.outbounds | type == "array"' "$tmp_subscription" >/dev/null; then
-    rm -f "$tmp_subscription"
-    if [[ -f "$subscription_cache_file" ]]; then
-      echo "warning: subscription response is invalid; using cached subscription"
-      return 0
-    fi
-    fail "subscription response is not a sing-box config with outbounds and no cache exists"
-  fi
-
-  node_count=$(count_subscription_nodes "$tmp_subscription")
+  node_count=$(count_subscription_nodes "$tmp_combined")
   if [[ "$node_count" -le 0 ]]; then
-    rm -f "$tmp_subscription"
+    rm -rf "$tmp_dir"
     if [[ -f "$subscription_cache_file" ]]; then
       echo "warning: subscription config contains no proxy outbounds; using cached subscription"
       return 0
     fi
     fail "subscription config contains no proxy outbounds and no cache exists"
   fi
-  mv "$tmp_subscription" "$subscription_cache_file"
+  mv "$tmp_combined" "$subscription_cache_file"
+  rm -rf "$tmp_dir"
 }
 
 generate_config_from_cache() {
@@ -379,7 +417,7 @@ generate_config_from_cache() {
   [[ -f "$subscription_cache_file" ]] || fail "missing subscription cache: $subscription_cache_file"
 
   local tmp_merged node_count
-  tmp_merged=$(mktemp "$script_dir/.config.XXXXXX.json")
+  tmp_merged=$(mktemp "${TMPDIR:-/tmp}/sing-box.config.XXXXXX")
 
   node_count=$(count_subscription_nodes "$subscription_cache_file")
   [[ "$node_count" -gt 0 ]] || fail "subscription cache contains no proxy outbounds"
@@ -388,7 +426,10 @@ generate_config_from_cache() {
     def is_node:
       .tag and (.type | IN("direct", "block", "dns", "selector", "urltest") | not);
 
-    ($subscription[0].outbounds | map(select(is_node))) as $nodes
+    ($subscription[0].outbounds
+      | map(select(is_node))
+      | map(if .type == "anytls" and .tls.alpn == ["h3"] then del(.tls.alpn) else . end)
+    ) as $nodes
     | ($nodes | map(.tag)) as $node_tags
     | .outbounds =
         (

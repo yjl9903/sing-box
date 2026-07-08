@@ -23,7 +23,7 @@
       }
     ],
     "final": "remote",
-    "strategy": "prefer_ipv6"
+    "strategy": "prefer_ipv4"
   },
   "inbounds": [
     {
@@ -63,15 +63,10 @@
     }
   ],
   "route": {
-      "rules": [
-        {
-          "port": 53,
-          "action": "hijack-dns"
-        },
+    "rules": [
       {
-        "inbound": "mixed-in",
-        "action": "resolve",
-        "strategy": "prefer_ipv4"
+        "port": 53,
+        "action": "hijack-dns"
       },
       {
         "action": "sniff"

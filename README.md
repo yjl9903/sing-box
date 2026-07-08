@@ -19,10 +19,11 @@ git clone https://github.com/yjl9903/sing-box ~/.config/sing-box
 cd ~/.config/sing-box
 ```
 
-Create `.env` and put your subscription URL in it:
+Create `.env` and put your subscription URL in it. Repeat `SUBSCRIPTION_URL` for multiple subscriptions:
 
 ```bash
 echo 'SUBSCRIPTION_URL="https://example.com/subscription"' > ~/.config/sing-box/.env
+echo 'SUBSCRIPTION_URL="https://example.com/another-subscription"' >> ~/.config/sing-box/.env
 ```
 
 Then start sing-box. `start` refreshes the subscription cache, generates `config.json`, starts the process, and enables the system proxy:
