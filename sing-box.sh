@@ -673,7 +673,7 @@ cmd_proxy_off() {
 cmd_env() {
   local http_url socks_url
   http_url="http://$host:$port"
-  socks_url="socks5://$host:$port"
+  socks_url="socks5h://$host:$port"
 
   printf 'export http_proxy=%q\n' "$http_url"
   printf 'export https_proxy=%q\n' "$http_url"
@@ -699,7 +699,7 @@ expected_env_proxy_value() {
       printf 'http://%s:%s\n' "$host" "$port"
       ;;
     all_proxy|ALL_PROXY)
-      printf 'socks5://%s:%s\n' "$host" "$port"
+      printf 'socks5h://%s:%s\n' "$host" "$port"
       ;;
     no_proxy|NO_PROXY)
       printf '%s\n' "$no_proxy_value"
