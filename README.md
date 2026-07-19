@@ -34,10 +34,18 @@ Then start sing-box. `start` refreshes the subscription cache, generates `config
 
 ## Usage
 
-```bash
-# Refresh config.subscription.json and generate config.json from config.template.json
-~/.config/sing-box/sing-box.sh update
+The built-in help includes a command overview, configuration reference, and
+details for every nested subcommand:
 
+```bash
+~/.config/sing-box/sing-box.sh --help
+~/.config/sing-box/sing-box.sh help config
+~/.config/sing-box/sing-box.sh help subscription list
+~/.config/sing-box/sing-box.sh help proxies switch
+~/.config/sing-box/sing-box.sh env test --help
+```
+
+```bash
 # Run or stop sing-box process.
 # Run refreshes config.subscription.json and regenerates config.json first.
 # If refresh fails, it falls back to the existing config.subscription.json cache.
@@ -45,6 +53,18 @@ Then start sing-box. `start` refreshes the subscription cache, generates `config
 ~/.config/sing-box/sing-box.sh start
 ~/.config/sing-box/sing-box.sh stop
 ~/.config/sing-box/sing-box.sh restart
+
+# Emergency recovery: leave sing-box stopped and restore direct networking.
+~/.config/sing-box/sing-box.sh reset
+
+# Stronger recovery: also clear runtime cache and power-cycle Wi-Fi.
+~/.config/sing-box/sing-box.sh reset --hard
+
+# Refresh config.subscription.json and generate config.json from config.template.json
+~/.config/sing-box/sing-box.sh subscription update
+
+# List the cached subscription nodes without exposing credentials.
+~/.config/sing-box/sing-box.sh subscription list
 
 # List, switch, or test default proxy nodes.
 ~/.config/sing-box/sing-box.sh proxies list
@@ -63,8 +83,37 @@ eval "$(~/.config/sing-box/sing-box.sh env off)"
 ~/.config/sing-box/sing-box.sh env check
 ~/.config/sing-box/sing-box.sh env test https://www.google.com/generate_204
 
-# Insepct system proxy status
+# Inspect system proxy, DNS, process, TUN, route, and recent log status.
 ~/.config/sing-box/sing-box.sh inspect
+
+# Clear the subscription cache, sing-box runtime cache, and log.
+# A running sing-box process is stopped and restarted automatically.
+~/.config/sing-box/sing-box.sh clear
+```
+
+## DNS recovery
+
+If DNS fails after sing-box has been running for a long time, capture the state
+before changing it, then restore direct networking:
+
+```bash
+~/.config/sing-box/sing-box.sh inspect > /tmp/sing-box-inspect.txt 2>&1
+~/.config/sing-box/sing-box.sh reset
+```
+
+If that is not enough, use the hard reset. It also clears `cache.db` and
+power-cycles `en0`, so Wi-Fi disconnects briefly:
+
+```bash
+~/.config/sing-box/sing-box.sh reset --hard
+```
+
+Both reset forms leave sing-box stopped. After direct networking works again,
+run `sing-box.sh start`. Proxy environment variables belong to the current
+shell and cannot be removed by a child script; clear them separately if used:
+
+```bash
+eval "$(~/.config/sing-box/sing-box.sh env off)"
 ```
 
 ## CLI dependencies

@@ -1,12 +1,16 @@
 {
   "log": {
-    "level": "error"
+    "level": "error",
+    "timestamp": true
   },
   "dns": {
     "servers": [
       {
-        "type": "local",
-        "tag": "local"
+        "type": "udp",
+        "tag": "local",
+        "server": "223.5.5.5",
+        "server_port": 53,
+        "detour": "direct"
       },
       {
         "type": "tcp",
@@ -17,6 +21,13 @@
       }
     ],
     "rules": [
+      {
+        "domain": [
+          "openapi.alipan.com",
+          "api.oplist.org"
+        ],
+        "server": "local"
+      },
       {
         "rule_set": "geosite-cn",
         "server": "local"
@@ -72,6 +83,17 @@
         "action": "sniff"
       },
       {
+        "domain": [
+          "openapi.alipan.com",
+          "api.oplist.org"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "protocol": "bittorrent",
+        "outbound": "direct"
+      },
+      {
         "clash_mode": "Direct",
         "outbound": "direct"
       },
@@ -90,10 +112,6 @@
           "127.0.0.0/8",
           "::1/128"
         ],
-        "outbound": "direct"
-      },
-      {
-        "protocol": "bittorrent",
         "outbound": "direct"
       },
       {
@@ -127,7 +145,7 @@
         "download_detour": "direct"
       }
     ],
-    "auto_detect_interface": true,
+    "default_interface": "en0",
     "default_domain_resolver": "local",
     "final": "default"
   },
