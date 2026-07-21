@@ -9,8 +9,7 @@
         "type": "udp",
         "tag": "local",
         "server": "223.5.5.5",
-        "server_port": 53,
-        "detour": "direct"
+        "server_port": 53
       },
       {
         "type": "tcp",
@@ -46,13 +45,6 @@
       "auto_route": true,
       "strict_route": true,
       "udp_timeout": "1m0s",
-      "platform": {
-        "http_proxy": {
-          "enabled": true,
-          "server": "127.0.0.1",
-          "server_port": 7892
-        }
-      },
       "endpoint_independent_nat": true
     },
     {
@@ -154,8 +146,6 @@
       "enabled": true,
       "cache_id": "东方网络"
     },
-    "clash_api": {
-      "external_controller": "127.0.0.1:9090"
-    }
+    "clash_api": {}
   }
 }

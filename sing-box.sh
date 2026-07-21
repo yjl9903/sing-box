@@ -16,7 +16,7 @@ network_service="Wi-Fi"
 network_device="en0"
 host=127.0.0.1
 port=7892
-clash_port=9090
+clash_port=9093
 proxy_test_timeout=3000
 proxy_test_url="http://www.gstatic.com/generate_204"
 
@@ -59,9 +59,9 @@ Usage:
   $program help [command [subcommand]]
 
 Commands:
-  run, start       Update the config, start sing-box, and enable system proxy
-  stop             Stop sing-box and disable system proxy
-  restart          Stop, refresh, start, and enable system proxy
+  run, start       Update the config and start sing-box in TUN mode
+  stop             Stop sing-box and disable any system proxy
+  restart          Stop, refresh, and start sing-box in TUN mode
   reset, recover   Restore direct networking; optionally reset Wi-Fi and cache
   subscription, sub
                    Refresh subscriptions or list cached proxy nodes
@@ -134,7 +134,8 @@ Subscription configuration:
 Base sing-box configuration:
   Edit $config_template_file for persistent DNS, inbound, routing, rule-set,
   logging, and experimental settings. During 'subscription update', proxy nodes
-  are appended and selector outbounds receive their tags.
+  are appended, selector outbounds receive their tags, and the Clash API
+  controller is set from host / clash_port below.
 
 Script settings:
   Edit the variables near the top of $0 to change:
@@ -159,8 +160,9 @@ Usage:
   $program run
   $program start
 
-Refresh all subscriptions, generate and validate config.json, start sing-box in
-the background, then enable the macOS system proxy. 'run' and 'start' are aliases.
+Disable any existing macOS system proxy, refresh all subscriptions, generate and
+validate config.json, then start sing-box in TUN mode. 'run' and 'start' are
+aliases. Applications do not need proxy environment variables.
 
 If a subscription download fails and a cache exists, the cached subscription is
 used. If sing-box is already running with an unchanged config, it is reused; a
@@ -186,9 +188,9 @@ EOF
 Usage:
   $program restart
 
-Stop sing-box, refresh subscriptions, regenerate config.json, start sing-box,
-and enable the macOS system proxy. See '$program help run' for refresh fallback
-and startup behavior.
+Disable any existing macOS system proxy, stop sing-box, refresh subscriptions,
+regenerate config.json, and start sing-box in TUN mode. See '$program help run'
+for refresh fallback and startup behavior.
 EOF
       ;;
     reset|recover)
@@ -750,7 +752,6 @@ cmd_restart() {
   cmd_stop_impl
   cmd_subscription_update_impl
   cmd_run_impl_without_update
-  cmd_proxy_on
 }
 
 count_subscription_nodes() {
@@ -824,7 +825,8 @@ generate_config_from_cache() {
   node_count=$(count_subscription_nodes "$subscription_cache_file")
   [[ "$node_count" -gt 0 ]] || fail "subscription cache contains no proxy outbounds"
 
-  if ! jq --slurpfile subscription "$subscription_cache_file" '
+  if ! jq --slurpfile subscription "$subscription_cache_file" \
+    --arg external_controller "$host:$clash_port" '
     def is_node:
       .tag and (.type | IN("direct", "block", "dns", "selector", "urltest") | not);
 
@@ -848,6 +850,7 @@ generate_config_from_cache() {
         else .
         end
       )
+    | .experimental.clash_api.external_controller = $external_controller
   ' "$config_template_file" >"$tmp_merged"; then
     rm -f "$tmp_merged"
     fail "failed to merge subscription outbounds into config template"
@@ -1442,8 +1445,8 @@ main() {
   case "$command" in
     run|start)
       [[ "$#" -eq 0 ]] || fail "$command takes no arguments"
+      cmd_proxy_off
       cmd_run
-      cmd_proxy_on
       ;;
     stop)
       [[ "$#" -eq 0 ]] || fail "stop takes no arguments"

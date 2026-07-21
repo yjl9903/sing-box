@@ -26,7 +26,14 @@ echo 'SUBSCRIPTION_URL="https://example.com/subscription"' > ~/.config/sing-box/
 echo 'SUBSCRIPTION_URL="https://example.com/another-subscription"' >> ~/.config/sing-box/.env
 ```
 
-Then start sing-box. `start` refreshes the subscription cache, generates `config.json`, starts the process, and enables the system proxy:
+Local ports are configured near the top of `sing-box.sh`. The generated
+`config.json` receives the Clash API controller from the script's `host` and
+`clash_port` values, so it does not need to be duplicated in
+`config.template.json`.
+
+Then start sing-box. `start` disables any existing macOS system proxy, refreshes
+the subscription cache, generates `config.json`, and starts the process in TUN
+mode. Applications do not need proxy environment variables:
 
 ```bash
 ~/.config/sing-box/sing-box.sh start
@@ -71,7 +78,7 @@ details for every nested subcommand:
 ~/.config/sing-box/sing-box.sh proxies switch
 ~/.config/sing-box/sing-box.sh proxies test
 
-# System level proxy switch
+# Optional system-level proxy switch. TUN mode does not require this.
 ~/.config/sing-box/sing-box.sh proxy on
 ~/.config/sing-box/sing-box.sh proxy off
 
