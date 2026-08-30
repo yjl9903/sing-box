@@ -39,6 +39,9 @@ mode. Applications do not need proxy environment variables:
 ~/.config/sing-box/sing-box.sh start
 ```
 
+TUN mode points the active Wi-Fi service at the TUN DNS endpoint
+`172.19.0.1`. `stop` and `reset` restore automatic DNS.
+
 ## Usage
 
 The built-in help includes a command overview, configuration reference, and

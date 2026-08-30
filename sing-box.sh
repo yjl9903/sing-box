@@ -17,6 +17,7 @@ network_device="en0"
 host=127.0.0.1
 port=7892
 clash_port=9093
+tun_dns_server=172.19.0.1
 proxy_test_timeout=3000
 proxy_test_url="http://www.gstatic.com/generate_204"
 
@@ -143,6 +144,7 @@ Script settings:
     network_device        network device for hard reset (default: $network_device)
     host / port           local mixed proxy (default: $host:$port)
     clash_port            Clash API port (default: $clash_port)
+    tun_dns_server         DNS endpoint on the TUN interface (default: $tun_dns_server)
     proxy_test_url        connectivity/delay test URL
     proxy_test_timeout    timeout in milliseconds
     bypass_domains        macOS system proxy bypass list
@@ -752,6 +754,8 @@ cmd_restart() {
   cmd_stop_impl
   cmd_subscription_update_impl
   cmd_run_impl_without_update
+  cmd_tun_dns_on
+  flush_dns_cache
 }
 
 count_subscription_nodes() {
@@ -1185,6 +1189,11 @@ cmd_proxy_off() {
   echo "system proxy disabled on $network_service"
 }
 
+cmd_tun_dns_on() {
+  networksetup -setdnsservers "$network_service" "$tun_dns_server"
+  echo "TUN DNS enabled on $network_service: $tun_dns_server"
+}
+
 flush_dns_cache() {
   dscacheutil -flushcache
   sudo killall -HUP mDNSResponder
@@ -1447,6 +1456,8 @@ main() {
       [[ "$#" -eq 0 ]] || fail "$command takes no arguments"
       cmd_proxy_off
       cmd_run
+      cmd_tun_dns_on
+      flush_dns_cache
       ;;
     stop)
       [[ "$#" -eq 0 ]] || fail "stop takes no arguments"
